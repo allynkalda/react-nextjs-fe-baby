@@ -1,5 +1,6 @@
 'use client'
 
+import { addMeasurement } from '../../api/measurement.ts';
 import React, { useState } from 'react';
 
 export default function BabyWeightInputForm() {
@@ -22,14 +23,29 @@ export default function BabyWeightInputForm() {
     setDate(e.target.value);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log(`Weight: ${weight} ${unit}, Date: ${date}`);
+  const handleWeightSubmit = async (e) => {
     // Perform your form submission logic here
+    e.preventDefault();
+    const childInfo = JSON.parse(localStorage.getItem("selectedChild") ?? '{})')
+    const today = new Date();
+
+    const measurement = {
+      childId: childInfo.id,
+      date: today,
+      weight,
+      weightUnit: unit
+    }
+
+    try {
+      const measurementAdded = await addMeasurement(measurement);
+      console.log("measurementAdded", measurementAdded);
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleWeightSubmit}>
       <div>
         <label htmlFor="weight">Baby Weight:</label>
         <input

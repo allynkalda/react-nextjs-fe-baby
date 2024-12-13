@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -8,20 +8,84 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
+import { getWeightData } from '../api/measurement.ts';
+import { WEIGHT_MINMAX } from '../utils/weight.ts'
 
-// Sample data with min and max bounds
-const data = [
-  { month: 0, minMax: [2.5, 4.5], weight: 3.5 },
-  { month: 1, minMax: [3.0, 6.0], weight: 4.5 },
-  { month: 2, minMax: [3.5, 7.0], weight: 5.0 },
-  { month: 3, minMax: [4.0, 8.0], weight: 6.0 },
-  { month: 4, minMax: [4.5, 8.5], weight: 6.5 },
-];
+type FetchedWeight = {
+  date: number,
+  weight: string
+}
+
+type FetchedWeightData = Array<FetchedWeight>
+
+type ChartWeight = {
+  month: number,
+  minMax: number[],
+  weight: number | null
+}
+
+type ChartWeightData = Array<ChartWeight>
+
+const sortWeightData = (weight: FetchedWeightData) => weight.sort((a: { date: number; }, b: { date: number; }) => a.date - b.date);
 
 export default function BabyWeightChart() {
+
+  const [weightData, setWeightData] = useState<ChartWeightData>([])
+
+  const childInfo = JSON.parse(localStorage.getItem("selectedChild") ?? '[]');
+
+  const fetchWeightData = useCallback(
+    async (childId: number) => {
+      try {
+        const retrievedWeightData = await getWeightData(childId);
+        const sortedWeightData = sortWeightData(retrievedWeightData);
+        const refBirthDate = new Date(childInfo.birthdate);
+
+        const formatWeightData = () => {
+          const weightArr: ChartWeightData = []
+
+          WEIGHT_MINMAX.forEach((weight: {
+            month: number,
+            min: number,
+            max: number
+          }, index: number) => {
+            const weightElem: ChartWeight = {
+              month: 0,
+              minMax: [],
+              weight: 0
+            }
+            weightElem.month = weight.month
+            weightElem.minMax = [ weight.min, weight.max ]
+
+            const refDate = new Date(new Date(refBirthDate).setMonth(refBirthDate.getMonth() + index)).toISOString();
+            const refMonth = new Date(refDate).getMonth();
+            const refYear = new Date(refDate).getFullYear();
+
+            const filterWeightDate = sortedWeightData.filter((w: { date: string | number | Date; }) => {
+              const refDate = new Date(w.date)
+              return refDate.getMonth() === refMonth && refDate.getFullYear() == refYear
+              
+            })
+            
+            weightElem.weight = filterWeightDate.length > 0 ? Number(filterWeightDate[0].weight) : null
+            weightArr.push(weightElem)
+          })
+          return weightArr
+        }
+        setWeightData(formatWeightData())
+      } catch (error) {
+        console.error("Error fetching weight info:", error);
+      }
+    }, [ childInfo ]
+  )
+  
+  useEffect(() => {
+    fetchWeightData(childInfo.id)
+  }, [childInfo.id])
+
   return (
     <ResponsiveContainer width="100%" height={400}>
-      <AreaChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+      <AreaChart data={weightData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
         {/* Grid */}
         <CartesianGrid strokeDasharray="3 3" />
 
@@ -29,7 +93,7 @@ export default function BabyWeightChart() {
         <XAxis
           dataKey="month"
           label={{ value: 'Months', position: 'insideBottom', offset: -5 }}
-          tickFormatter={(month) => `${month} mo`}
+          tickFormatter={(month: any) => `${month} mo`}
         />
         <YAxis label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft' }} />
 

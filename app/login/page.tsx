@@ -1,29 +1,56 @@
 'use client'
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from 'next/navigation';
 
-import { getUser } from "../api/user";
+import { getUser } from "../api/user.ts";
+import { getChild } from "../api/child.ts";
 
 export default function Login() {
     const router = useRouter()
     const [email, setEmail] = useState("");
 
-    useEffect(() => {
-        const storedEmail = localStorage.getItem("email");
-        console.log('storedEmail', storedEmail)
-        if (storedEmail) {
-          setEmail(storedEmail);
-          router.push('/dashboard');
+    const fetchChildren = useCallback(
+      async (parentId: number) => {
+        try {
+          const childrenInfo = await getChild(parentId);
+          console.log("childInfo", childrenInfo);
+
+          if (childrenInfo?.length > 1) {
+            localStorage.setItem("children", JSON.stringify(childrenInfo))
+            router.push('/child');
+          } else if (childrenInfo?.length === 0) {
+            router.push('/child/add');
+          } else if (childrenInfo?.length === 1) {
+            router.push('/dashboard');
+          }
+        } catch (error) {
+          console.error("Error fetching user info:", error);
         }
-      }, []);
+      }, [ email ]
+    )
+    
+    useEffect(() => {
+       const storedUser = localStorage.getItem("user");
+
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser || '{}')
+          setEmail(parsed.email);
+          fetchChildren(parsed.id);
+        }
+      }, [ email ]);
 
     const handleSubmit = async (e: { preventDefault: () => void; }) => {
       e.preventDefault();
-      // localStorage.setItem("email", email)
-
-      const userInfo = await getUser(email)
-      console.log('userInfo', userInfo)
+      try {
+        const userInfo = await getUser(email);
+        if (userInfo.email) {
+          localStorage.setItem("user", JSON.stringify(userInfo));
+        }
+        console.log("userInfo", userInfo);
+      } catch (error) {
+        console.error("Error fetching user info:", error);
+      }
     };
     
     return (
